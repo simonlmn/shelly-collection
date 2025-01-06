@@ -1,0 +1,1 @@
+The JavaScript files in this project are for Shelly devices, which use the Shelly Script Language, a dialect of JavaScript. The scripts run on a modified version of Espruino and therefore the code must adhere to the limitations as described in https://shelly-api-docs.shelly.cloud/gen2/Scripts/ShellyScriptLanguageFeatures.
