@@ -1,3 +1,48 @@
+/**
+ * Remote Dimmer Controller Script
+ * 
+ * This script allows you to control Shelly dimmer devices remotely using input events. 
+ * It currently supports the Shelly Dimmer 1/2 devices and implements a two-button dimmer control scheme. 
+ * It supports switching the light on and off and dimming the light up/down by holding the corresponding input button.
+ * 
+ * Setup Instructions:
+ * 1. Configure the remote dimmer settings in the KVS (Key-Value Store) with the key "remote-dimmer-config".
+ *    Example configuration:
+ *    [
+ *      {
+ *        "id": "front",
+ *        "btn": {
+ *          "0": "down",
+ *          "1": "up"
+ *        },
+ *        "dev": {
+ *          "addr": "192.168.3.127",
+ *          "auth": "@credentials1"
+ *        }
+ *      },
+ *      {
+ *        "id": "back",
+ *        "btn": {
+ *          "2": "down",
+ *          "3": "up"
+ *        },
+ *        "dev": {
+ *          "addr": "192.168.3.127",
+ *          "auth": "@credentials2"
+ *        }
+ *      }
+ *    ]
+ * 
+ * 2. Store the device credentials in the KVS with the respective keys.
+ *    Example credentials:
+ *    { "id": "some-user", "pw": "some-password" }
+ * 
+ * Usage:
+ * - The script listens for input events and triggers the corresponding actions on the configured dimmer devices.
+ * - Long press on any input button will start dimming the light in the configured direction. It will also switch on the light if it is currently off.
+ * - Short press on any input button will toggle the light on or off.
+ */
+
 // Possible actions for switching the light
 const LIGHT_ACTIONS = {
     ON: "on",
