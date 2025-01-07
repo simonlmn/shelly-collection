@@ -1,17 +1,17 @@
-GET http://192.168.3.127/status
-
+@addr=192.168.3.127
+@auth=
 
 ### Get the current status of the light
-GET http://192.168.3.127/light/0
+GET http://{{auth}}{{addr}}/light/0
 
 ### Toggle the light on or off
-GET http://192.168.3.127/light/0?turn=toggle
+GET http://{{auth}}{{addr}}/light/0?turn=toggle
 
 ### Start dimming the light up to maximum brightness (using the configured fade rate)
-GET http://192.168.3.127/light/0?dim=up&step=100
+GET http://{{auth}}{{addr}}/light/0?dim=up&step=100
 
 ### Start dimming the light down to minimum brightness (using the configured fade rate)
-GET http://192.168.3.127/light/0?dim=down&step=100
+GET http://{{auth}}{{addr}}/light/0?dim=down&step=100
 
 ### Stop dimming the light (hold the current brightness)
-GET http://192.168.3.127/light/0?dim=stop
+GET http://{{auth}}{{addr}}/light/0?dim=stop
