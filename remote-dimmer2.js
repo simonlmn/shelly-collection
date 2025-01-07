@@ -1,17 +1,14 @@
-// Configuration settings for the dimmer device
-let CONFIG = {
-    dimmerDevice: "http://192.168.3.127/",
-    minimumBrightness: 25,
-    longPushTime: 500,
-    updateInterval: 250,
-    dimmerStep: 2,
-};
+const LIGHT_ACTIONS = {
+    ON: "on",
+    OFF: "off",
+    TOGGLE: "toggle"
+}
 
 // Constants for dimmer actions
 const DIMMER_ACTIONS = {
     STOP: "stop",
-    BRIGHTEN: "brighten",
-    DARKEN: "darken"
+    UP: "up",
+    DOWN: "down"
 };
 
 // Constants for state machine states
@@ -32,14 +29,19 @@ const TRANSITIONS = {
     DIMMING: [STATES.DIMMING, STATES.IDLE]
 }
 
+// Configuration settings for the dimmer device
+const CONFIG = {
+    dimmerDeviceAddress: "192.168.3.127",
+    inputMapping: { "input:0": DIMMER_ACTIONS.DOWN, "input:1": DIMMER_ACTIONS.UP },
+    longPushTime: 500
+};
+
 // Data object to hold the current state and other relevant information
 let DATA = {
-    timerHandle: null,
-    inputTriggerTime: 0,
     state: STATES.IDLE,
-    dimmerAction: DIMMER_ACTIONS.STOP,
-    lightIsOn: false,
-    brightness: CONFIG.minimumBrightness
+    inputTriggerTime: 0,
+    inputAction: DIMMER_ACTIONS.STOP,
+    lightIsOn: false
 }
 
 /**
@@ -50,6 +52,8 @@ function transitionTo(state) {
     if (TRANSITIONS[DATA.state].indexOf(state) === -1) {
         return;
     }
+
+    print("Transitioning from " + DATA.state + " to " + state);
 
     DATA.state = state;
     switch (state) {
@@ -76,11 +80,11 @@ function transitionTo(state) {
 
 /**
  * Send an HTTP GET request to the dimmer device.
- * @param {string} url - The URL to send the request to.
+ * @param {string} endpointPath - The endpoint to send the request to.
  * @param {function} callback - The callback function to execute when the request completes.
  */
-function sendRequest(url, callback) {
-    Shelly.call("http.get", { url: CONFIG.dimmerDevice + url }, callback, null);
+function sendRequest(endpointPath, callback) {
+    Shelly.call("http.get", { url: "http://" + CONFIG.dimmerDeviceAddress + "/" + endpointPath }, callback, null);
 }
 
 /**
@@ -91,21 +95,20 @@ function getLightStatus(callback) {
     sendRequest("light/0", function (response, error_code, error_message, ud) {
         let body = JSON.parse(response.body);
         DATA.lightIsOn = body.ison;
-        DATA.brightness = body.brightness;
-        print("finished getLightStatus", DATA.lightIsOn, DATA.brightness);
+        print("getLightStatus", DATA.lightIsOn, body.brightness);
         callback();
     });
 }
 
 /**
  * Switch the light on, off, or toggle its state.
- * @param {string} turn - The action to perform ("on", "off", or "toggle").
+ * @param {string} action - The action to perform ("on", "off", or "toggle").
  * @param {function} callback - The callback function to execute when the request completes.
  */
-function switchLight(turn, callback) {
-    sendRequest("light/0/set?turn=" + turn, function (response, error_code, error_message, ud) {
-        DATA.lightIsOn = turn === "on" ? true : (turn === "toggle" ? !DATA.lightIsOn : false);
-        print("finished switchLight", turn, DATA.lightIsOn, DATA.brightness);
+function switchLight(action, callback) {
+    sendRequest("light/0?turn=" + action, function (response, error_code, error_message, ud) {
+        DATA.lightIsOn = action === LIGHT_ACTIONS.ON ? true : (action === LIGHT_ACTIONS.TOGGLE ? !DATA.lightIsOn : false);
+        print("switchLight", action, DATA.lightIsOn);
         callback();
     });
 }
@@ -116,9 +119,20 @@ function switchLight(turn, callback) {
  * @param {function} callback - The callback function to execute when the request completes.
  */
 function setLightBrightness(brightness, callback) {
-    sendRequest("light/0/set?brightness=" + brightness, function (response, error_code, error_message, ud) {
-        DATA.brightness = brightness;
-        print("finished setLightBrightness", DATA.lightIsOn, DATA.brightness);
+    sendRequest("light/0?brightness=" + brightness, function (response, error_code, error_message, ud) {
+        print("setLightBrightness", brightness);
+        callback();
+    });
+}
+
+/**
+ * Dim the light in the specified direction.
+ * @param {string} action - The direction to dim ("up", "down", or "stop").
+ * @param {function} callback - The callback function to execute when the request completes.
+ */
+function dimLight(action, callback) {
+    sendRequest("light/0?dim=" + action + (action !== DIMMER_ACTIONS.STOP ? "&step=100" : ""), function (response, error_code, error_message, ud) {
+        print("dimLight", action);
         callback();
     });
 }
@@ -127,9 +141,8 @@ function setLightBrightness(brightness, callback) {
  * Enter the idle state, clearing any timers and resetting relevant data.
  */
 function enterIdle() {
-    Timer.clear(DATA.timerHandle);
     DATA.inputTriggerTime = 0;
-    DATA.dimmerAction = "stop";
+    DATA.inputAction = DIMMER_ACTIONS.STOP;
 }
 
 /**
@@ -155,7 +168,7 @@ function enterWaitingForLongPush() {
  */
 function enterEnsureLightIsOn() {
     if (!DATA.lightIsOn) {
-        switchLight("on", function () {
+        switchLight(LIGHT_ACTIONS.ON, function () {
             transitionTo(STATES.DIMMING);
         });
     } else {
@@ -167,30 +180,7 @@ function enterEnsureLightIsOn() {
  * Enter the dimming state, starting the dimming loop.
  */
 function enterDimming() {
-    Timer.clear(DATA.timerHandle);
-    DATA.timerHandle = Timer.set(CONFIG.updateInterval, true, dimmingLoop, null);
-}
-
-/**
- * The dimming loop, adjusting the brightness based on the dimmer action.
- */
-function dimmingLoop() {
-    let previousBrightness = DATA.brightness;
-    if (DATA.dimmerAction === "brighten") {
-        DATA.brightness += CONFIG.dimmerStep;
-    } else if (DATA.dimmerAction === "darken") {
-        DATA.brightness -= CONFIG.dimmerStep;
-    } else {
-        return;
-    }
-
-    DATA.brightness = Math.max(CONFIG.minimumBrightness, Math.min(100, DATA.brightness));
-
-    if (DATA.brightness != previousBrightness) {
-        setLightBrightness(DATA.brightness, function () { });
-    } else {
-        transitionTo(STATES.IDLE);
-    }
+    dimLight(DATA.inputAction, function () { });
 }
 
 /**
@@ -198,19 +188,27 @@ function dimmingLoop() {
  * @param {object} e - The event object containing the status change information.
  */
 Shelly.addStatusHandler(function (e) {
-    if (e.component === "input:0" || e.component === "input:1") {
+    if (CONFIG.inputMapping.hasOwnProperty(e.component)) {
+        print("---> input event", e.component, e.delta.state);
         if (e.delta.state === true) {
             if (DATA.state !== STATES.IDLE) {
                 transitionTo(STATES.IDLE);
             }
             DATA.inputTriggerTime = Date.now();
-            DATA.dimmerAction = e.component === "input:1" ? "brighten" : "darken";
+            DATA.inputAction = CONFIG.inputMapping[e.component];
             transitionTo(STATES.GET_LIGHT_STATUS);
         }
         else if (e.delta.state === false) {
-            if (DATA.state === STATES.WAITING_FOR_LONG_PUSH) {
+            if (DATA.state === STATES.WAITING_FOR_LONG_PUSH || DATA.state === STATES.GET_LIGHT_STATUS) {
+                switchLight(LIGHT_ACTIONS.TOGGLE, function () {
+                    transitionTo(STATES.IDLE);
+                });
+            } else if (DATA.state === STATES.DIMMING) {
+                dimLight(DIMMER_ACTIONS.STOP, function () {
+                    transitionTo(STATES.IDLE);
+                });
+            } else {
                 transitionTo(STATES.IDLE);
-                switchLight("toggle", function () { });
             }
         }
     }
