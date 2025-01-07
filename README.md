@@ -1,0 +1,1 @@
+This repository contains a collection of [Shelly](https://www.shelly.com/) related artifacts, such as scripts to run on the later generation of devices, my own API collections or documentation.

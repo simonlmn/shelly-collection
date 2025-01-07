@@ -1,5 +1,5 @@
-@addr=192.168.3.127
-@auth=
+@addr={{addr}}
+@auth={{auth}}
 
 ### Get the current status of the light
 GET http://{{auth}}{{addr}}/light/0
